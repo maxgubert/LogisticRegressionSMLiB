@@ -3,26 +3,59 @@ title: "LogisticRegression_R_Tutorial"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+Load dataset
+```{r}
+library(tidyverse)
+
+Train = read.csv("titanic/train.csv")
+Test = read.csv("titanic/test.csv")
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+Fill in missing values for Age with the mean of the dataset
+```{r}
+Train$Age[is.na(Train$Age)] = mean(Train$Age, na.rm = TRUE)
+Test$Age[is.na(Test$Age)] = mean(Test$Age, na.rm = TRUE)
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+Step 2: Create DF of independent/dependent variables
+```{r}
+nonvars = c("PassengerId","Name","Ticket","Embarked","Cabin") # variables that we don't want to include in our model
+Train = Train[,!(names(Train) %in% nonvars)]
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Transform Sex to numeric variable
+```{r}
+Train$Sex = as.numeric(factor(Train$Sex)) - 1
+Test$Sex = as.numeric(factor(Test$Sex)) - 1
+
+cor(Train)
+```
+
+Build a Logistic Regression Model with all the variables included
+```{r}
+TitanicLog1 = glm(Survived~., data = Train, family = binomial)
+summary(TitanicLog1)
+
+ggplot(Train, aes(x=Age, y=Survived)) +
+  geom_point() +
+  stat_smooth(method="glm", se=FALSE) + 
+  NULL
+```
+
+Model without Parch
+```{r}
+TitanicLog2 = glm(Survived ~ . - Parch, data = Train, family = binomial)
+summary(TitanicLog2)
+```
+
+Model without Parch and Fare
+```{r}
+TitanicLog3 = glm(Survived ~ . - Parch - Fare, data = Train, family = binomial)
+summary(TitanicLog3)
+```
+
+
+
+
+
