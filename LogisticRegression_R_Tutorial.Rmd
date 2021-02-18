@@ -53,6 +53,8 @@ Model without Parch and Fare
 ```{r}
 TitanicLog3 = glm(Survived ~ . - Parch - Fare, data = Train, family = binomial)
 summary(TitanicLog3)
+
+aa
 ```
 
 
