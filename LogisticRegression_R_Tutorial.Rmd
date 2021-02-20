@@ -3,61 +3,108 @@ title: "LogisticRegression_R_Tutorial"
 output: html_document
 ---
 
-Load dataset
+Load libraries and datasets
 ```{r}
 library(tidyverse)
+library(car)
 
-Train = read.csv("titanic/train.csv")
-Test = read.csv("titanic/test.csv")
+Train = read.csv("titanic/train.csv") # Training data
+Test = read.csv("titanic/test.csv") # Test data
 ```
 
+Variables notes
 
-Fill in missing values for Age with the mean of the dataset
+Pclass: A proxy for socio-economic status (1 = Upper, 2 = Middle, 3 = Lower)
+
+SibSp: Number of Siblings/Spouses aboard
+
+Parch: Number of Parents/Children aboard
+
+Fare: Ticket price
+
+
+Fill NA values for Age and Fare with the mean of the dataset
 ```{r}
 Train$Age[is.na(Train$Age)] = mean(Train$Age, na.rm = TRUE)
 Test$Age[is.na(Test$Age)] = mean(Test$Age, na.rm = TRUE)
+Test$Fare[is.na(Test$Fare)] = mean(Test$Fare, na.rm = TRUE)
 ```
 
-Step 2: Create DF of independent/dependent variables
+
+Transform Sex to categorical variable
 ```{r}
-nonvars = c("PassengerId","Name","Ticket","Embarked","Cabin") # variables that we don't want to include in our model
+Train$Sex = as.numeric(factor(Train$Sex)) - 1 # (0 = Female, 1 = Male)
+Test$Sex = as.numeric(factor(Test$Sex)) - 1 # (0 = Female, 1 = Male)
+```
+
+
+Create dataframe of independent/dependent variables
+```{r}
+nonvars = c("PassengerId","Name","Ticket","Embarked","Cabin") # variables that are not relevant for our model
 Train = Train[,!(names(Train) %in% nonvars)]
+
+cor(Train) #Check for collinearity. Weak amount of correlation between predictor variables.
+# Correlation between Pclass and Fare (Upper class pays more)
 ```
 
-Transform Sex to numeric variable
-```{r}
-Train$Sex = as.numeric(factor(Train$Sex)) - 1
-Test$Sex = as.numeric(factor(Test$Sex)) - 1
-
-cor(Train)
-```
 
 Build a Logistic Regression Model with all the variables included
 ```{r}
 TitanicLog1 = glm(Survived~., data = Train, family = binomial)
-summary(TitanicLog1)
+summary(TitanicLog1) # AIC: 802.73 (The smaller the AIC value, the better the model fit)
+# Pclass, Sex, Age and SibSp are significant
 
-ggplot(Train, aes(x=Age, y=Survived)) +
-  geom_point() +
-  stat_smooth(method="glm", se=FALSE) + 
-  NULL
+anova(TitanicLog1, test = "Chisq") # Same variables are significant with a Chisq test
+
+car::vif(TitanicLog1) #Another way of checking for collinearity is with the Variance Inflation Factor (VIF). All values are below 2, so collinearity is not a problem here.
 ```
+
 
 Model without Parch
 ```{r}
 TitanicLog2 = glm(Survived ~ . - Parch, data = Train, family = binomial)
-summary(TitanicLog2)
+summary(TitanicLog2) # AIC: 801.65 (Better)
 ```
+
 
 Model without Parch and Fare
 ```{r}
 TitanicLog3 = glm(Survived ~ . - Parch - Fare, data = Train, family = binomial)
-summary(TitanicLog3)
-
-aa
+summary(TitanicLog3) # AIC: 800.84 (Better!)
 ```
 
 
+Predict Survival with the best model: TitanicLog3
+```{r}
+Test$Survived_Prob = predict.glm(TitanicLog3, Test, type = "response")
+Test$Survived = as.numeric(ifelse(Test$Survived_Prob >= 0.5, "1", "0")) # Convert survival probability to categorical variable, where 0 = Died and 1 = Survived
 
 
+ggplot(Test, aes(x=Age, y=Survived)) +
+  geom_point() +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE) + 
+  NULL
+# We don't observe the typical S curve for the logistic model because Age alone can't fully predict the Survival (Age 0 doesn't mean 100% Survival probability and viceversa), but the effect of Age is significant (The younger the more probability to survive) but not strong enough.
+
+
+ggplot(Test, aes(x=Sex, y=Survived)) +
+  geom_point() +
+  geom_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) + 
+  NULL
+# Sex only takes 2 values (0 = Female, 1 = Male). There is a strong effect that can predict Survival, females are more likely to survive. But since the category only has 2 values, the values inbetween and their survival probability don't make sense.
+
+
+ggplot(Test, aes(x=Pclass, y=Survived)) +
+  geom_point() +
+  geom_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) + 
+  NULL
+# Pclass only takes 3 values, that can help predict Survival. Upper class more likely to survive than lower class.
+
+
+ggplot(Test, aes(x=SibSp, y=Survived)) +
+  geom_point() +
+  geom_smooth(method="glm", method.args=list(family="binomial"), se=FALSE) + 
+  NULL
+# The less amount of siblings and spouses, the better the chances to survive.
+```
 
